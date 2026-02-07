@@ -1,159 +1,99 @@
 from __future__ import annotations
-
+import chromadb
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence
-
-import chromadb
-
 
 @dataclass
 class PersonRecord:
     person_id: str
-    people_xyz: Sequence[float]
-    face_embedding: Optional[Sequence[float]] = None
-    pose_embedding: Optional[Sequence[float]] = None
-    timeframe: Optional[str] = None
-    chat_history_ref: Optional[str] = None
-
+    face_embedding: Sequence[float]  # Vector จาก Face Recognition (เช่น InsightFace)
+    person_name: str
+    person_info: str = ""           # ข้อมูลเพิ่มเติม เช่น "ชอบกินกาแฟ", "เป็นเจ้าของบ้าน"
+    metadata: Optional[Dict[str, Any]] = None
 
 class PeopleVectorDB:
-    """Database for people storage"""
+    """
+    ระบบฐานข้อมูลความจำเกี่ยวกับบุคคล (Long-term Person Memory)
+    เน้นการระบุตัวตนด้วยใบหน้า (Face ID)
+    """
 
-    def __init__(self, persist_directory: str = "chroma_people_db") -> None:
-        self._client = chromadb.PersistentClient(path=persist_directory)
+    def __init__(self, persist_directory: Optional[str] = None) -> None:
+        # เลือกว่าจะบันทึกข้อมูลง Disk หรือใช้ Memory (สำหรับ Test)
+        if persist_directory:
+            self._client = chromadb.PersistentClient(path=persist_directory)
+        else:
+            self._client = chromadb.Client()
 
-        self._face_col = self._client.get_or_create_collection(
-            name="people_face",
-            metadata={"hnsw:space": "cosine"},
+        self._collection = self._client.get_or_create_collection(
+            name="people_memory",
+            metadata={"hnsw:space": "cosine"} # ใช้ Cosine Similarity สำหรับ Face Vector
         )
 
-        self._pose_col = self._client.get_or_create_collection(
-            name="people_pose",
-            metadata={"hnsw:space": "cosine"},
-        )
+    def add_person(self, record: PersonRecord) -> None:
+        """บันทึกข้อมูลบุคคลใหม่ลงในฐานข้อมูล"""
 
-    def upsert(self, record: PersonRecord) -> None:
-        """Store a person"""
-        xyz = list(record.people_xyz)
-        if len(xyz) != 3:
-            raise ValueError("people_xyz must have length 3")
-
+        # เตรียม Metadata
         base_meta = {
-            "person_id": record.person_id,
-            "people_x": float(xyz[0]),
-            "people_y": float(xyz[1]),
-            "people_z": float(xyz[2]),
+            "name": record.person_name,
+            "info": record.person_info,
         }
 
-        if record.timeframe:
-            base_meta["timeframe"] = record.timeframe
-        if record.chat_history_ref:
-            base_meta["chat_history_ref"] = record.chat_history_ref
+        # รวม metadata เพิ่มเติมถ้ามี
+        if record.metadata:
+            base_meta.update(record.metadata)
 
-        if record.face_embedding:
-            self._face_col.upsert(
-                ids=[f"{record.person_id}::face"],
-                embeddings=[list(record.face_embedding)],
-                metadatas=[{**base_meta, "embedding_type": "face"}],
-                documents=[""],
-            )
-
-        if record.pose_embedding:
-            self._pose_col.upsert(
-                ids=[f"{record.person_id}::pose"],
-                embeddings=[list(record.pose_embedding)],
-                metadatas=[{**base_meta, "embedding_type": "pose"}],
-                documents=[""],
-            )
-
-    def delete_person(self, person_id: str) -> None:
-        """Delete a person"""
-        self._face_col.delete(ids=[f"{person_id}::face"])
-        self._pose_col.delete(ids=[f"{person_id}::pose"])
-
-    def get_person(self, person_id: str) -> Optional[Dict[str, Any]]:
-        """Get person by ID"""
-        result = self._face_col.get(
-            ids=[f"{person_id}::face"],
-            include=["metadatas"],
+        self._collection.upsert(
+            ids=[record.person_id],
+            embeddings=[list(record.face_embedding)],
+            metadatas=[base_meta]
         )
 
-        if not result or not result.get("metadatas"):
-            result = self._pose_col.get(
-                ids=[f"{person_id}::pose"],
-                include=["metadatas"],
-            )
+    def query_by_face(self, query_embedding: Sequence[float], n_results: int = 1) -> List[Dict[str, Any]]:
+        """ค้นหาบุคคลจาก Vector ใบหน้า"""
+        results = self._collection.query(
+            query_embeddings=[list(query_embedding)],
+            n_results=n_results,
+            include=["metadatas", "distances"]
+        )
 
-        if not result or not result.get("metadatas"):
+        formatted = []
+        if results["ids"] and results["ids"][0]:
+            for i in range(len(results["ids"][0])):
+                hit = dict(results["metadatas"][0][i])
+                hit["person_id"] = results["ids"][0][i]
+                hit["distance"] = float(results["distances"][0][i])
+                formatted.append(hit)
+
+        return formatted
+
+    def get_person(self, person_id: str) -> Optional[Dict[str, Any]]:
+        """ดึงข้อมูลบุคคลจาก ID"""
+        result = self._collection.get(
+            ids=[person_id],
+            include=["metadatas"]
+        )
+
+        if not result or not result["metadatas"]:
             return None
 
         meta = dict(result["metadatas"][0])
-        meta["people_xyz"] = [
-            meta.get("people_x"),
-            meta.get("people_y"),
-            meta.get("people_z"),
-        ]
+        meta["person_id"] = person_id
         return meta
 
-    def query_by_face_embedding(
-        self,
-        query_embedding: Sequence[float],
-        n_results: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """Query people by face embedding"""
-        result = self._face_col.query(
-            query_embeddings=[list(query_embedding)],
-            n_results=n_results,
-            include=["metadatas", "distances"],
-        )
+    def delete_person(self, person_id: str) -> None:
+        """ลบข้อมูลบุคคล"""
+        self._collection.delete(ids=[person_id])
 
-        metadatas_batch = result.get("metadatas", [[]])[0]
-        distances_batch = result.get("distances", [[]])[0]
+    def get_all_people(self) -> List[Dict[str, Any]]:
+        """ดึงรายชื่อบุคคลทั้งหมดในฐานข้อมูล"""
+        results = self._collection.get(include=["metadatas"])
 
-        hits: List[Dict[str, Any]] = []
-        for meta, dist in zip(metadatas_batch, distances_batch):
-            hit = dict(meta)
-            hit["people_xyz"] = [
-                hit.get("people_x"),
-                hit.get("people_y"),
-                hit.get("people_z"),
-            ]
-            hit["distance"] = float(dist)
-            hits.append(hit)
-
-        return hits
-
-    def query_by_pose_embedding(
-        self,
-        query_embedding: Sequence[float],
-        n_results: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """Query people by pose embedding"""
-        result = self._pose_col.query(
-            query_embeddings=[list(query_embedding)],
-            n_results=n_results,
-            include=["metadatas", "distances"],
-        )
-
-        metadatas_batch = result.get("metadatas", [[]])[0]
-        distances_batch = result.get("distances", [[]])[0]
-
-        hits: List[Dict[str, Any]] = []
-        for meta, dist in zip(metadatas_batch, distances_batch):
-            hit = dict(meta)
-            hit["people_xyz"] = [
-                hit.get("people_x"),
-                hit.get("people_y"),
-                hit.get("people_z"),
-            ]
-            hit["distance"] = float(dist)
-            hits.append(hit)
-
-        return hits
-
-    def get_person_by_face_id(self, face_id: str) -> Optional[Dict[str, Any]]:
-        """Get person by FaceID"""
-        return self.get_person(face_id)
-
+        output = []
+        if results["ids"]:
+            for i in range(len(results["ids"])):
+                item = dict(results["metadatas"][i])
+                item["person_id"] = results["ids"][i]
+                output.append(item)
+        return output
 
 __all__ = ["PersonRecord", "PeopleVectorDB"]

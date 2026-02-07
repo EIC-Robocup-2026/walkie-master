@@ -1,72 +1,55 @@
+from __future__ import annotations
 import math
-from typing import List, Optional, TypedDict
+import chromadb
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence
 
-from .vector_db import BaseVectorDB
+@dataclass
+class SceneRecord:
+    scene_id: str
+    scene_xyz: Sequence[float]
+    scene_name: str
+    scene_embedding: Optional[Sequence[float]] = None
 
-
-class SceneRecord(TypedDict):
-    """Schema สำหรับบันทึกข้อมูลสถานที่"""
-
-    name: str
-    x: float
-    y: float
-    heading: float
-
-
-class SceneVectorDB(BaseVectorDB):
-    """
-    ระบบจัดการความจำเชิงสถานที่ (Spatial Memory)
-    ใช้สำหรับจดจำห้องและพิกัดบนแผนที่ SLAM
-    """
-
+class SceneVectorDB:
     def __init__(self, persist_directory: Optional[str] = None):
-        # ส่ง persist_directory ต่อไปให้ BaseVectorDB
-        super().__init__(
-            collection_name="scenes_location", persist_directory=persist_directory
+        if persist_directory:
+            self.client = chromadb.PersistentClient(path=persist_directory)
+        else:
+            self.client = chromadb.Client()
+
+        self.collection = self.client.get_or_create_collection(
+            name="scenes_location",
+            metadata={"hnsw:space": "l2"} # ใช้ L2 สำหรับพิกัดทางกายภาพ (Euclidean)
         )
 
-    def add_scene(self, scene_id: str, scene_data: SceneRecord):
-        """บันทึกสถานที่ใหม่ลงในฐานข้อมูล"""
-        # เราใช้พิกัด [x, y] เป็น embedding แบบง่ายเพื่อให้ค้นหาด้วยระยะทางได้
-        self.add(
-            ids=[scene_id],
-            embeddings=[[scene_data["x"], scene_data["y"]]],
-            metadatas=[{"name": scene_data["name"], "heading": scene_data["heading"]}],
-            documents=[scene_data["name"]],
+    def add_scene(self, record: SceneRecord):
+        """บันทึกสถานที่ใหม่"""
+        x, y, z = record.scene_xyz
+        # ใช้พิกัดเป็น embedding เพื่อให้ query หาจุดที่ใกล้ที่สุดได้เลย
+        spatial_emb = [float(x), float(y), float(z)]
+
+        self.collection.upsert(
+            ids=[record.scene_id],
+            embeddings=[record.scene_embedding if record.scene_embedding else spatial_emb],
+            metadatas=[{"name": record.scene_name, "x": float(x), "y": float(y), "z": float(z)}]
         )
 
-    def find_scene_by_name(self, name: str):
-        """ค้นหาพิกัดสถานที่จากชื่อห้อง"""
-        results = self.collection.get(where={"name": name}, limit=1)
-        if results and results["ids"]:
-            return {
-                "id": results["ids"][0],
-                "x": results["embeddings"][0][0] if results["embeddings"] else None,
-                "y": results["embeddings"][0][1] if results["embeddings"] else None,
-                "heading": results["metadatas"][0]["heading"],
-            }
-        return None
+    def find_scenes_by_slam_coords(self, x: float, y: float, z: float = 0.0, radius: float = 1.0):
+        """ค้นหาสถานที่ใกล้เคียงพิกัด SLAM"""
+        results = self.collection.query(
+            query_embeddings=[[float(x), float(y), float(z)]],
+            n_results=5,
+            include=["metadatas", "distances"]
+        )
 
-    def find_scenes_by_slam_coords(self, x: float, y: float, radius: float = 1.0):
-        """
-        ค้นหาว่าพิกัดปัจจุบัน (SLAM) อยู่ในห้องไหน
-        โดยใช้รัศมีวงกลม (Radius) ในการระบุขอบเขต
-        """
-        # ค้นหาจุดที่ใกล้พิกัด [x, y] ที่สุด
-        results = self.query(query_embeddings=[[x, y]], n_results=5)
-
-        filtered_results = []
-        if results and results["ids"]:
+        filtered = []
+        if results["ids"] and results["ids"][0]:
             for i in range(len(results["ids"][0])):
-                dist = results["distances"][0][i]
-                # กรองเฉพาะจุดที่อยู่ในระยะรัศมีที่กำหนด
-                if math.sqrt(dist) <= radius:
-                    filtered_results.append(
-                        {
-                            "id": results["ids"][0][i],
-                            "name": results["metadatas"][0][i]["name"],
-                            "distance": math.sqrt(dist),
-                        }
-                    )
-
-        return filtered_results
+                dist = math.sqrt(results["distances"][0][i])
+                if dist <= radius:
+                    item = dict(results["metadatas"][0][i])
+                    item["scene_id"] = results["ids"][0][i]
+                    item["distance"] = dist
+                    filtered.append(item)
+        return filtered
