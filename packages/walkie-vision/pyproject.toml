@@ -11,6 +11,7 @@ dependencies = [
     "insightface",           # สำหรับ ArcFace
     "onnxruntime-gpu",       # สำหรับรัน ArcFace/YOLO บน GPU
     "transformers",          # สำหรับ BLIP VQA
+    "sentence-transformers",
     "numpy>=2.0.0",
     "opencv-python",
     "pillow",
@@ -21,4 +22,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["walkie_vision"]
