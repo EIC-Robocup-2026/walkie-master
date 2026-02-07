@@ -47,7 +47,12 @@ def test_arm_relative_movement(robot):
     result = robot.arm.go_to_pose_relative(
         group_name="left_arm",
         x=0.01,
+        y=0,
         z=-0.01,
+        roll=0,
+        pitch=0,
+        yaw=0,
+        cartesian_path=False,
         blocking=True,  # ในการเทสแนะนำให้ใช้ True เพื่อรอเช็คผล
     )
     assert result is not None
