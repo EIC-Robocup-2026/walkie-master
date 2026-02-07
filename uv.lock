@@ -4640,7 +4640,7 @@ wheels = [
 
 [[package]]
 name = "walkie-db"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/walkie-db" }
 dependencies = [
     { name = "chromadb" },
