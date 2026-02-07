@@ -3,14 +3,8 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
-from walkie_db.object_db import ObjectVectorDB
-from walkie_db.people_db import PeopleVectorDB
-
-# Import จาก Workspace Packages
-from walkie_sdk import WalkieRobot
-from walkie_vision.detector import VisionDetector
-from walkie_vision.encoder import VisionEncoder
-from walkie_vision.face_id import FaceIdentifier
+from walkie_db import ObjectVectorDB, PeopleVectorDB, SceneVectorDB
+from walkie_vision import FaceIdentifier, VisionDetector
 
 
 def main():

@@ -7,6 +7,7 @@ dependencies = [
     "torch>=2.0.0",
     "torchvision",
     "ultralytics>=8.3.0",    # สำหรับ YOLO11
+    "hydra-core>=1.3.2",
     "sam2",                  # สำหรับ SAM 2.1
     "insightface",           # สำหรับ ArcFace
     "onnxruntime-gpu",       # สำหรับรัน ArcFace/YOLO บน GPU

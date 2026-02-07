@@ -17,6 +17,11 @@ else
     echo "✅ SAM 2.1 Large มีอยู่ในระบบแล้ว"
 fi
 
+# แก้ไข URL ให้ถูกต้อง
+echo "📥 กำลังดาวน์โหลด SAM 2.1 Config..."
+mkdir -p "data/models/configs/sam2.1"
+wget https://raw.githubusercontent.com/facebookresearch/segment-anything-2/main/sam2/configs/sam2.1/sam2.1_h14.yaml -O "data/models/configs/sam2.1/sam2.1_h14.yaml"
+
 # 2. YOLO11x-cls (Classification)
 # อ้างอิงจากแผนที่ใช้ YOLO11x (Extra Large) สำหรับ precise object naming
 echo "📥 กำลังดาวน์โหลด YOLO11x-cls..."
