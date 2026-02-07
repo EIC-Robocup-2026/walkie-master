@@ -8,6 +8,8 @@ dependencies = [
     "numpy>=2.0.0",
     "opencv-python>=4.11.0",
     "python-dotenv>=1.2.1",
+    "pytest",
+    "lark-parser",
     "pydantic>=2.0.0",
     "walkie-sdk",
     "walkie-vision",
