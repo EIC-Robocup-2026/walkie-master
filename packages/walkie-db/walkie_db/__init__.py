@@ -1,12 +1,14 @@
-from .object_db import ObjectVectorDB
-from .people_db import PeopleVectorDB
+from .object_db import ObjectRecord, ObjectVectorDB
+from .people_db import PersonRecord, PeopleVectorDB
 from .scene_db import SceneRecord, SceneVectorDB
-from .vector_db import BaseVectorDB
+
+# นำ BaseVectorDB ออก เพราะเราไม่ต้องการให้คนภายนอกเรียกใช้ (หรือเราลบไฟล์ทิ้งไปแล้ว)
 
 __all__ = [
-    "BaseVectorDB",
+    "ObjectRecord",
     "ObjectVectorDB",
+    "PersonRecord",
     "PeopleVectorDB",
-    "SceneVectorDB",
     "SceneRecord",
+    "SceneVectorDB",
 ]
