@@ -1,43 +1,39 @@
+import clip
 import torch
 from PIL import Image
-from sentence_transformers import SentenceTransformer
 from transformers import BlipForConditionalGeneration, BlipProcessor
 
 
 class VisionEncoder:
-    """
-    Module สำหรับการวิเคราะห์ภาพเชิงลึก (VQA) และการสร้าง Image Embedding
-    สำหรับวัตถุทั่วไป เพื่อเก็บลงใน ObjectVectorDB.
-    """
-
-    def __init__(
-        self,
-        vqa_model="Salesforce/blip-vqa-large",
-        embed_model="clip-ViT-B-32",
-        device="cuda",
-    ):
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
-
-        # 1. BLIP VQA สำหรับตอบคำถามจากภาพ เช่น "Is this cup dirty?"
-        self.vqa_processor = BlipProcessor.from_pretrained(vqa_model)
-        self.vqa_model = BlipForConditionalGeneration.from_pretrained(vqa_model).to(
-            self.device
+    def __init__(self):
+        # โหลด BLIP สำหรับ Captioning
+        self.blip_proc = BlipProcessor.from_pretrained(
+            "Salesforce/blip-image-captioning-base"
+        )
+        self.blip_model = BlipForConditionalGeneration.from_pretrained(
+            "Salesforce/blip-image-captioning-base"
         )
 
-        # 2. Sentence-Transformer (CLIP) สำหรับสร้าง Image Embedding
-        # ใช้สร้าง vector เพื่อบันทึกลง objects_image collection
-        self.embed_model = SentenceTransformer(embed_model, device=self.device)
-
-    def ask_question(self, image: Image.Image, question: str) -> str:
-        """ถามคำถามเกี่ยวกับภาพ (Visual Question Answering)"""
-        inputs = self.vqa_processor(image, question, return_tensors="pt").to(
-            self.device
+        # โหลด CLIP สำหรับ Vector Embedding
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.clip_model, self.clip_preprocess = clip.load(
+            "ViT-B/32", device=self.device
         )
-        out = self.vqa_model.generate(**inputs)
-        return self.vqa_processor.decode(out[0], skip_special_tokens=True)
 
-    def get_image_embedding(self, image: Image.Image) -> list:
-        """สร้าง Vector (Embedding) จากภาพวัตถุเพื่อใช้ในการค้นหา (Retrieval)"""
-        # คืนค่าเป็น List เพื่อให้พร้อมบันทึกลง ChromaDB
-        embedding = self.embed_model.encode(image)
-        return embedding.tolist()
+    def encode_object(self, cropped_image_np):
+        """สร้างทั้ง Caption และ Embedding"""
+        pil_img = Image.fromarray(cv2.cvtColor(cropped_image_np, cv2.COLOR_BGR2RGB))
+
+        # 1. Generate Caption ด้วย BLIP
+        inputs = self.blip_proc(pil_img, return_tensors="pt")
+        out = self.blip_model.generate(**inputs)
+        caption = self.blip_proc.decode(out[0], skip_special_tokens=True)
+
+        # 2. Generate Embedding ด้วย CLIP
+        image_input = self.clip_preprocess(pil_img).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            embedding = (
+                self.clip_model.encode_image(image_input).cpu().numpy().flatten()
+            )
+
+        return caption, embedding

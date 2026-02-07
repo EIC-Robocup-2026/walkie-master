@@ -9,6 +9,7 @@ class SceneRecord:
     scene_id: str
     scene_xyz: Sequence[float]
     scene_name: str
+    description: Optional[str] = None  # เพิ่ม: คำอธิบายเชิง Semantic เช่น "ห้องครัวที่มีโต๊ะไม้"
     scene_embedding: Optional[Sequence[float]] = None
 
 class SceneVectorDB:
@@ -24,15 +25,28 @@ class SceneVectorDB:
         )
 
     def add_scene(self, record: SceneRecord):
-        """บันทึกสถานที่ใหม่"""
-        x, y, z = record.scene_xyz
-        # ใช้พิกัดเป็น embedding เพื่อให้ query หาจุดที่ใกล้ที่สุดได้เลย
-        spatial_emb = [float(x), float(y), float(z)]
+            """บันทึกสถานที่พร้อมคำอธิบายเชิงความหมาย"""
+            x, y, z = record.scene_xyz
+            spatial_emb = [float(x), float(y), float(z)]
 
-        self.collection.upsert(
-            ids=[record.scene_id],
-            embeddings=[record.scene_embedding if record.scene_embedding else spatial_emb],
-            metadatas=[{"name": record.scene_name, "x": float(x), "y": float(y), "z": float(z)}]
+            self.collection.upsert(
+                ids=[record.scene_id],
+                embeddings=[record.scene_embedding if record.scene_embedding else spatial_emb],
+                metadatas={
+                    "name": record.scene_name,
+                    "description": record.description or "", # เก็บคำอธิบายลง Metadata
+                    "x": float(x),
+                    "y": float(y),
+                    "z": float(z)
+                }
+            )
+
+    def query_scenes_by_text(self, query_text: str, n_results: int = 3):
+        """ค้นหาสถานที่ด้วยภาษาธรรมชาติ เช่น 'where is the messy room?'"""
+        return self.collection.query(
+            query_texts=[query_text],
+            n_results=n_results,
+            include=["metadatas"]
         )
 
     def find_scenes_by_slam_coords(self, x: float, y: float, z: float = 0.0, radius: float = 1.0):
