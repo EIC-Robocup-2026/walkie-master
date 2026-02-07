@@ -1,36 +1,58 @@
 import cv2
 import numpy as np
-from ultralytics import SAM, YOLO  # สมมติใช้ SAM/YOLO จาก Ultralytics
+import torch
+from PIL import Image
+from tqdm import tqdm
+from ultralytics import SAM, YOLO
 
 
 class VisionDetector:
-    def __init__(self):
-        # โหลด SAM 3 และ YOLO Model
-        self.sam_model = SAM("models/sam2_b.pt")  # หรือรุ่นที่ต้องการ
-        self.yolo_model = YOLO("models/yolov8x.pt")
+    def __init__(
+        self,
+        sam_checkpoint: str = "models/sam2_b.pt",
+        yolo_checkpoint: str = "models/yolov8x.pt",
+        device: str = "cuda",
+    ):
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+
+        with tqdm(total=2, desc="🤖 Initializing Vision Detector") as pbar:
+            pbar.set_postfix_str("Loading YOLO")
+            self.yolo_model = YOLO(yolo_checkpoint).to(self.device)
+            pbar.update(1)
+
+            pbar.set_postfix_str("Loading SAM")
+            self.sam_model = SAM(sam_checkpoint).to(self.device)
+            pbar.update(1)
+            pbar.set_postfix_str("Ready!")
 
     def get_segmented_objects(self, frame):
-        """
-        1. ใช้ SAM เพื่อหา Mask ของวัตถุทั้งหมด
-        2. ใช้ YOLO เพื่อระบุประเภทของวัตถุในแต่ละ Mask
-        """
+        """Pipeline: SAM (Segment) -> YOLO (Classify)"""
         results = self.sam_model(frame)
         detected_items = []
 
         for result in results:
+            if result.masks is None:
+                continue
+
             masks = result.masks.data
             for i, mask in enumerate(masks):
-                # สร้างภาพ Crop เฉพาะวัตถุโดยใช้ Mask
                 mask_np = mask.cpu().numpy()
                 cropped_obj = self._apply_mask(frame, mask_np)
 
-                # ให้ YOLO ช่วยระบุว่าใน Mask นี้คืออะไร
-                yolo_res = self.yolo_model(cropped_obj)
-                label = yolo_res[0].probs.top1_label if yolo_res[0].probs else "unknown"
+                # ให้ YOLO ระบุวัตถุในส่วนที่ Segment ออกมา
+                yolo_res = self.yolo_model.predict(cropped_obj, verbose=False)
+
+                try:
+                    if hasattr(yolo_res[0], "probs") and yolo_res[0].probs is not None:
+                        label = yolo_res[0].names[yolo_res[0].probs.top1]
+                    else:
+                        label = yolo_res[0].names[int(yolo_res[0].boxes[0].cls)]
+                except (AttributeError, IndexError):
+                    label = "unknown"
 
                 detected_items.append(
                     {
-                        "image": cropped_obj,
+                        "image": cropped_obj,  # numpy array
                         "yolo_class": label,
                         "bbox": result.boxes.xyxy[i].cpu().numpy(),
                     }
@@ -38,6 +60,9 @@ class VisionDetector:
         return detected_items
 
     def _apply_mask(self, image, mask):
-        # ฟังก์ชันสำหรับตัดภาพเฉพาะส่วนที่มี Mask (Background เป็นสีดำ)
+        if mask.shape[:2] != image.shape[:2]:
+            mask = cv2.resize(
+                mask, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST
+            )
         mask_3d = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
         return (image * mask_3d).astype(np.uint8)
