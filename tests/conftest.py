@@ -41,9 +41,3 @@ def vision_detector(model_paths):
         sam_checkpoint=model_paths["sam_checkpoint"],
         yolo_checkpoint=model_paths["yolo_checkpoint"],
     )
-
-
-@pytest.fixture(scope="session")
-def test_db_path(tmp_path_factory):
-    """สร้างถังข้อมูลแยกสำหรับการ Test เท่านั้น (ไม่ทับ data/chromadb จริง)"""
-    return str(tmp_path_factory.mktemp("test_db"))

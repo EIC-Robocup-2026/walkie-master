@@ -19,8 +19,11 @@ class SceneVectorDB(BaseVectorDB):
     ใช้สำหรับจดจำห้องและพิกัดบนแผนที่ SLAM
     """
 
-    def __init__(self):
-        super().__init__(collection_name="scenes_location")
+    def __init__(self, persist_directory: Optional[str] = None):
+        # ส่ง persist_directory ต่อไปให้ BaseVectorDB
+        super().__init__(
+            collection_name="scenes_location", persist_directory=persist_directory
+        )
 
     def add_scene(self, scene_id: str, scene_data: SceneRecord):
         """บันทึกสถานที่ใหม่ลงในฐานข้อมูล"""
