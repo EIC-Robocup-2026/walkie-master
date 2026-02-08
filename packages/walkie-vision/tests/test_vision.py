@@ -29,7 +29,7 @@ def output_path():
 def vision_detector():
     """โหลด Detector จริง (อัปเกรดเป็น CUDA สำหรับ 5090)"""
     return VisionDetector(
-        yolo_checkpoint="models/yolo11x.pt",  # หรือ yolo26x.pt ตามที่คุณตั้งชื่อไว้
+        yolo_checkpoint="models/yolo26x.pt",  # หรือ yolo26x.pt ตามที่คุณตั้งชื่อไว้
         device="cuda",
     )
 
@@ -46,7 +46,7 @@ def test_vision_integration_with_real_file(
     """
     Integration Test: เวอร์ชัน High-Performance Batch Processing
     """
-    img_path = os.path.join(test_data_path, "test_room_2.jpg")
+    img_path = os.path.join(test_data_path, "test_room_3.jpg")
 
     if not os.path.exists(img_path):
         pytest.skip(f"Test file not found at {img_path}.")
