@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 import cv2
 import numpy as np
 from insightface.app import FaceAnalysis
@@ -9,41 +11,51 @@ class FaceIdentifier:
     ออกแบบมาเพื่อทำงานร่วมกับ PeopleVectorDB สำหรับการจำเจ้าของบ้าน (Re-ID).
     """
 
-    def __init__(self, model_name="buffalo_l", ctx_id=0):
-        # buffalo_l คือโมเดลขนาดใหญ่ที่แม่นยำที่สุด รองรับการรันบน GPU (RTX 5090 Ready)
-        # providers จะเรียงลำดับการใช้ CUDA ก่อน ถ้าไม่มีจะสลับไป CPU
+    def __init__(self, model_name: str = "buffalo_l", ctx_id: int = 0):
+        # buffalo_l คือโมเดลที่แม่นยำสูง รองรับ CUDA สำหรับ RTX 5090
         self.app = FaceAnalysis(
             name=model_name, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
         )
-        # det_size คือขนาดภาพที่ใช้ตรวจจับใบหน้า (640x640 เป็นค่ามาตรฐานที่สมดุล)
         self.app.prepare(ctx_id=ctx_id, det_size=(640, 640))
 
-    def extract_face_data(self, frame):
+    def extract_faces(self, frame: np.ndarray) -> List[Dict[str, Any]]:
         """
-        รับภาพสดจากหุ่นยนต์ (BGR numpy array จาก walkie-sdk)
-        และคืนค่าข้อมูลใบหน้าทั้งหมดที่ตรวจพบ
+        ตรวจจับและสกัดฟีเจอร์ใบหน้า คืนค่าข้อมูลที่พร้อมบันทึกลง PeopleVectorDB
         """
         faces = self.app.get(frame)
         results = []
 
         for face in faces:
-            # face.normed_embedding คือ vector 512 มิติที่พร้อมบันทึกลง ChromaDB
+            # ตรวจสอบคุณภาพเบื้องต้น (Detection Score)
+            if face.det_score < 0.5:
+                continue
+
             results.append(
                 {
-                    "embedding": face.normed_embedding.tolist(),
+                    "embedding": face.normed_embedding.tolist(),  # พร้อมสำหรับ ChromaDB
                     "bbox": face.bbox.astype(int).tolist(),
-                    "landmark": face.kps.astype(int).tolist(),
+                    "kps": face.kps.astype(int).tolist(),
                     "gender": "M" if face.gender == 1 else "F",
-                    "age": face.age,
+                    "age": int(face.age),
                     "score": float(face.det_score),
+                    "crop": self._crop_face(frame, face.bbox),
                 }
             )
 
         return results
 
+    def _crop_face(self, frame: np.ndarray, bbox: np.ndarray) -> np.ndarray:
+        """ตัดภาพใบหน้าเพื่อใช้เก็บเป็น Thumbnail หรือแสดงผล"""
+        x1, y1, x2, y2 = bbox.astype(int)
+        # ป้องกันพิกัดออกนอกขอบภาพ
+        h, w = frame.shape[:2]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        return frame[y1:y2, x1:x2]
+
     @staticmethod
-    def get_similarity(feat1, feat2):
-        """คำนวณความเหมือน (Cosine Similarity) ระหว่าง 2 ใบหน้า (0.0 - 1.0)"""
-        feat1 = np.array(feat1)
-        feat2 = np.array(feat2)
-        return np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
+    def get_similarity(feat1: List[float], feat2: List[float]) -> float:
+        """คำนวณความเหมือนระหว่าง 2 ใบหน้า"""
+        f1 = np.array(feat1)
+        f2 = np.array(feat2)
+        return float(np.dot(f1, f2) / (np.linalg.norm(f1) * np.linalg.norm(f2)))
