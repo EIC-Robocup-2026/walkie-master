@@ -77,3 +77,44 @@ class VisionEncoder:
         embedding = self.get_image_embedding(pil_img)
 
         return caption, embedding
+
+    def encode_batch(
+        self, images_np: list[np.ndarray]
+    ) -> tuple[list[str], list[list[float]]]:
+        """ประมวลผลวัตถุหลายชิ้นพร้อมกัน (Batch Processing)"""
+        if not images_np:
+            return [], []
+
+        # 1. เตรียมภาพ: แปลง BGR -> RGB และเป็น PIL Image ทั้งหมด
+        pil_images = [
+            Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)) for img in images_np
+        ]
+
+        # 2. Batch Captioning (BLIP Large)
+        # ด้วย RTX 5090 เราสามารถอัด batch_size ได้เยอะมาก (เช่น 16, 32 หรือมากกว่า)
+        inputs = self.vqa_processor(images=pil_images, return_tensors="pt").to(
+            self.device
+        )
+
+        with torch.no_grad():
+            out = self.vqa_model.generate(
+                **inputs,
+                max_length=80,
+                num_beams=3,  # ลด beam เล็กน้อยเพื่อความเร็วสูงสุดในโหมด batch
+                repetition_penalty=1.5,
+                early_stopping=True,
+            )
+
+        captions = self.vqa_processor.batch_decode(out, skip_special_tokens=True)
+        captions = [c.strip() for c in captions]
+
+        # 3. Batch Embedding (CLIP)
+        # SentenceTransformer รองรับ batching ในตัวอยู่แล้วผ่านเมธอด encode
+        embeddings = self.embed_model.encode(
+            pil_images,
+            batch_size=len(pil_images),
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+
+        return captions, embeddings.tolist()
