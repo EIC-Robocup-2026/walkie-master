@@ -1,6 +1,6 @@
 [project]
 name = "walkie-vision"
-version = "0.1.0"
+version = "0.2.0"
 description = "Image Awareness Module (SAM 2.1 + YOLO11x + ArcFace)"
 requires-python = ">=3.11"
 dependencies = [
