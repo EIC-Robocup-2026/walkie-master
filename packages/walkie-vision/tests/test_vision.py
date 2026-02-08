@@ -1,4 +1,6 @@
+import json
 import os
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -15,9 +17,17 @@ def test_data_path():
 
 
 @pytest.fixture
+def output_path():
+    """สร้างและชี้ไปยัง Directory สำหรับเก็บผลลัพธ์การ Test"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(os.path.dirname(__file__), "outputs", timestamp)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+@pytest.fixture
 def vision_detector():
     """โหลด Detector จริง (ใช้ CPU เพื่อการทดสอบ)"""
-    # ตรวจสอบให้แน่ใจว่า path โมเดลถูกต้องตามที่คุณวางไว้ในเครื่อง
     return VisionDetector(
         sam_checkpoint="models/sam2_b.pt",
         yolo_checkpoint="models/yolov8x.pt",
@@ -32,40 +42,54 @@ def vision_encoder():
 
 
 def test_vision_integration_with_real_file(
-    vision_detector, vision_encoder, test_data_path
+    vision_detector, vision_encoder, test_data_path, output_path
 ):
     """
-    Integration Test:
-    1. โหลดภาพจริงจากไฟล์
-    2. ทำ Segmentation & Detection
-    3. ส่งต่อให้ Encoder สร้าง Caption & Embedding
+    Integration Test พร้อมระบบเก็บผลลัพธ์ (Artifacts)
     """
     img_path = os.path.join(test_data_path, "test_room.jpg")
 
-    # ตรวจสอบว่ามีไฟล์ภาพจริงก่อนรัน
     if not os.path.exists(img_path):
         pytest.skip(f"Test file not found at {img_path}. Please add a sample image.")
 
     frame = cv2.imread(img_path)
 
-    # 1. รัน Detector จริง
+    # 1. รัน Detector
     objects = vision_detector.get_segmented_objects(frame)
 
-    # คราวนี้ len(objects) ควรจะ > 0 เพราะใช้ภาพจริงที่มีวัตถุ
-    assert len(objects) > 0, (
-        "Detector should find at least one object in the sample image"
-    )
+    assert len(objects) > 0, "Detector should find at least one object"
 
-    # 2. ทดสอบชิ้นงานแรกที่เจอ
-    obj = objects[0]
-    assert "image" in obj
-    assert "yolo_class" in obj
+    # เตรียม List สำหรับเก็บ Metadata เพื่อบันทึกเป็น JSON
+    test_results_summary = []
 
-    # 3. รัน Encoder จริง
-    caption, embedding = vision_encoder.encode_object(obj["image"])
+    # 2. วนลูปเก็บผลลัพธ์ของทุกวัตถุที่เจอ (หรือจะเลือกแค่ 5 ตัวแรกเพื่อความไว)
+    for i, obj in enumerate(objects):
+        # รัน Encoder
+        caption, embedding = vision_encoder.encode_object(obj["image"])
 
-    print(f"\n🔍 Found: {obj['yolo_class']}")
-    print(f"📝 Caption: {caption}")
+        # บันทึกภาพวัตถุที่ Crop ออกมา
+        crop_filename = f"obj_{i}_{obj['yolo_class']}.jpg"
+        cv2.imwrite(os.path.join(output_path, crop_filename), obj["image"])
 
-    assert len(caption) > 0
-    assert len(embedding) == 512
+        # เก็บข้อมูลลง Summary
+        test_results_summary.append(
+            {
+                "index": i,
+                "class": obj["yolo_class"],
+                "caption": caption,
+                "crop_path": crop_filename,
+                "embedding_sample": embedding[:5],  # เก็บแค่ 5 ค่าแรกเป็นตัวอย่าง
+            }
+        )
+
+        # Test assertions สำหรับตัวแรก (ตามเดิม)
+        if i == 0:
+            assert len(caption) > 0
+            assert len(embedding) == 512
+
+    # 3. บันทึก Metadata ทั้งหมดลงไฟล์ JSON
+    with open(os.path.join(output_path, "summary.json"), "w", encoding="utf-8") as f:
+        json.dump(test_results_summary, f, indent=4, ensure_ascii=False)
+
+    print(f"\n✅ Test artifacts saved to: {output_path}")
+    print(f"📊 Total objects found: {len(objects)}")
