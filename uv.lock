@@ -4663,7 +4663,7 @@ requires-dist = [
 
 [[package]]
 name = "walkie-master"
-version = "0.1.1"
+version = "0.1.2"
 source = { virtual = "." }
 dependencies = [
     { name = "lark-parser" },
@@ -4719,7 +4719,7 @@ requires-dist = [
 
 [[package]]
 name = "walkie-vision"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/walkie-vision" }
 dependencies = [
     { name = "clip" },
