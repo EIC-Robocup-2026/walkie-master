@@ -27,11 +27,10 @@ def output_path():
 
 @pytest.fixture
 def vision_detector():
-    """โหลด Detector จริง (ใช้ CPU เพื่อการทดสอบ)"""
+    """โหลด Detector จริง (รุ่น Standard Detection)"""
     return VisionDetector(
-        sam_checkpoint="models/sam2_b.pt",
-        yolo_checkpoint="models/yolov8x.pt",
-        device="cpu",
+        yolo_checkpoint="models/yolo26x.pt",
+        device="cpu",  # ปรับเป็น cuda ถ้ามี GPU และอยากเทสความเร็วเครื่องจริง
     )
 
 
@@ -46,15 +45,16 @@ def test_vision_integration_with_real_file(
 ):
     """
     Integration Test พร้อมระบบเก็บผลลัพธ์ (Artifacts)
+    เวอร์ชัน YOLO-only Segmentation
     """
-    img_path = os.path.join(test_data_path, "test_room.jpg")
+    img_path = os.path.join(test_data_path, "test_room_2.jpg")
 
     if not os.path.exists(img_path):
         pytest.skip(f"Test file not found at {img_path}. Please add a sample image.")
 
     frame = cv2.imread(img_path)
 
-    # 1. รัน Detector
+    # 1. รัน Detector (ตอนนี้เป็น YOLO-seg ตัวเดียวแล้ว จะเร็วขึ้นมาก)
     objects = vision_detector.get_segmented_objects(frame)
 
     assert len(objects) > 0, "Detector should find at least one object"
@@ -62,9 +62,9 @@ def test_vision_integration_with_real_file(
     # เตรียม List สำหรับเก็บ Metadata เพื่อบันทึกเป็น JSON
     test_results_summary = []
 
-    # 2. วนลูปเก็บผลลัพธ์ของทุกวัตถุที่เจอ (หรือจะเลือกแค่ 5 ตัวแรกเพื่อความไว)
+    # 2. วนลูปเก็บผลลัพธ์ของทุกวัตถุที่เจอ
     for i, obj in enumerate(objects):
-        # รัน Encoder
+        # รัน Encoder (ตอนนี้ Caption ควรจะออกมาเป็นคำบรรยายจริงแล้ว)
         caption, embedding = vision_encoder.encode_object(obj["image"])
 
         # บันทึกภาพวัตถุที่ Crop ออกมา
@@ -78,13 +78,14 @@ def test_vision_integration_with_real_file(
                 "class": obj["yolo_class"],
                 "caption": caption,
                 "crop_path": crop_filename,
-                "embedding_sample": embedding[:5],  # เก็บแค่ 5 ค่าแรกเป็นตัวอย่าง
+                "embedding_sample": embedding[:5],
             }
         )
 
-        # Test assertions สำหรับตัวแรก (ตามเดิม)
+        # Test assertions สำหรับตัวแรก
         if i == 0:
             assert len(caption) > 0
+            # ตรวจสอบขนาด Embedding (ถ้าใช้ clip-ViT-B-32 จะเป็น 512)
             assert len(embedding) == 512
 
     # 3. บันทึก Metadata ทั้งหมดลงไฟล์ JSON
