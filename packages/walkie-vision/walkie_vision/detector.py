@@ -9,8 +9,8 @@ from ultralytics import SAM, YOLO
 class VisionDetector:
     def __init__(
         self,
-        sam_checkpoint: str = "models/sam2_b.pt",
-        yolo_checkpoint: str = "models/yolov8x.pt",
+        sam_checkpoint: str = "models/sam3.pt",
+        yolo_checkpoint: str = "models/yolo11x.pt",
         device: str = "cuda",
     ):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")

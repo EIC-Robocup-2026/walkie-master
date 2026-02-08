@@ -1,5 +1,5 @@
 import cv2
-import numpy as np  # เพิ่มเพื่อแก้ NameError: name 'np' is not defined
+import numpy as np
 import torch
 from PIL import Image
 from sentence_transformers import SentenceTransformer
@@ -10,7 +10,7 @@ from transformers import BlipForConditionalGeneration, BlipProcessor
 class VisionEncoder:
     def __init__(
         self,
-        vqa_model="Salesforce/blip-vqa-large",
+        vqa_model="Salesforce/blip-vqa-base",
         embed_model="clip-ViT-B-32",
         device="cuda",
     ):
@@ -32,22 +32,43 @@ class VisionEncoder:
             pbar.update(1)
             pbar.set_postfix_str("Ready!")
 
+    def generate_caption(self, image: Image.Image) -> str:
+        """โหมดบรรยายภาพ (Image Captioning) - ให้ผลลัพธ์ดีกว่าการถาม describe"""
+        # การไม่ใส่ text prompt หรือใส่แค่ "a photo of" จะทำให้โมเดลรันโหมด Captioning
+        inputs = self.vqa_processor(image, "a photo of", return_tensors="pt").to(
+            self.device
+        )
+
+        # ปรับ max_new_tokens เพื่อให้ประโยคยาวขึ้นเล็กน้อย
+        out = self.vqa_model.generate(**inputs, max_new_tokens=50)
+        return self.vqa_processor.decode(out[0], skip_special_tokens=True)
+
     def ask_question(self, image: Image.Image, question: str) -> str:
-        """Visual Question Answering (VQA)"""
+        """Visual Question Answering (VQA) - ใช้เมื่อต้องการเจาะจงข้อมูล"""
         inputs = self.vqa_processor(image, question, return_tensors="pt").to(
             self.device
         )
-        out = self.vqa_model.generate(**inputs)
+        out = self.vqa_model.generate(**inputs, max_new_tokens=50)
         return self.vqa_processor.decode(out[0], skip_special_tokens=True)
 
     def get_image_embedding(self, image: Image.Image) -> list:
         embedding = self.embed_model.encode(image)
-        return embedding.tolist()
+        # ตรวจสอบว่าเป็น list หรือยัง (SentenceTransformer มักคืนค่าเป็น numpy/torch)
+        return embedding.tolist() if hasattr(embedding, "tolist") else list(embedding)
 
     def encode_object(self, image_np: np.ndarray) -> tuple[str, list]:
         """สกัด Caption และ Vector จากภาพ NumPy"""
-        # แปลง BGR เป็น RGB ก่อนเข้า PIL
-        pil_img = Image.fromarray(cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB))
-        caption = self.ask_question(pil_img, "Describe this object in detail")
+        if image_np is None or image_np.size == 0:
+            return "empty image", [0.0] * 512
+
+        # 1. แปลง BGR (OpenCV) เป็น RGB (PIL)
+        rgb_img = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(rgb_img)
+
+        # 2. ใช้ generate_caption แทนการถาม describe
+        caption = self.generate_caption(pil_img)
+
+        # 3. สร้าง Embedding
         embedding = self.get_image_embedding(pil_img)
+
         return caption, embedding
