@@ -11,7 +11,7 @@ class VisionEncoder:
     def __init__(
         self,
         # แนะนำรุ่น 3b-mix-224 หรือ 3b-mix-448 สำหรับความละเอียดที่สูงขึ้น
-        caption_model="google/paligemma-3b-mix-224",
+        caption_model="google/paligemma-3b-ft-cococap-448",
         embed_model="clip-ViT-B-32",
         device="cuda",
     ):
