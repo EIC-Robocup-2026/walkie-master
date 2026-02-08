@@ -7,40 +7,42 @@ from walkie_db import (
 )
 
 def test_object_persistence(test_db_path):
-    """เช็คการบันทึกและดึงข้อมูลวัตถุ (Lean Schema)"""
+    """ทดสอบ Schema ใหม่: YOLO + BLIP + CLIP"""
     db = ObjectVectorDB(persist_directory=test_db_path)
 
     record = ObjectRecord(
         object_id="cup_001",
         object_xyz=[1.0, 2.0, 0.5],
         object_embedding=[0.1] * 512,
-        label="red_cup"
+        label="starbucks_cup",
+        yolo_class="cup",            # ฟิลด์ใหม่
+        caption="a red coffee cup with a white lid" # ฟิลด์ใหม่จาก BLIP
     )
 
     db.add_object(record)
+
+    # ทดสอบการค้นหาด้วยภาพ (Vector)
     results = db.query_objects_by_image([0.1] * 512, n_results=1)
+    assert results[0]["yolo_class"] == "cup"
+    assert "red coffee cup" in results[0]["caption"]
 
-    assert len(results) > 0
-    assert results[0]["object_id"] == "cup_001"
-    assert results[0]["label"] == "red_cup"
-
-
-def test_scene_location(test_db_path):
-    """เช็คความแม่นยำของพิกัด SLAM ใน SceneDB"""
+def test_scene_semantic_search(test_db_path):
+    """ทดสอบการค้นหาสถานที่ด้วยความหมาย (Semantic Scene)"""
     db = SceneVectorDB(persist_directory=test_db_path)
 
     scene = SceneRecord(
         scene_id="kitchen_01",
         scene_xyz=[10.5, 5.0, 0.0],
-        scene_name="kitchen"
+        scene_name="kitchen",
+        description="a modern kitchen with a large fridge" # ฟิลด์ใหม่
     )
 
     db.add_scene(scene)
-    # ค้นหาด้วยพิกัด SLAM
-    res = db.find_scenes_by_slam_coords(10.4, 4.9, 0.0, radius=0.5)
 
-    assert len(res) > 0
-    assert res[0]["name"] == "kitchen"
+    # ค้นหาด้วยชื่อหรือคำอธิบาย
+    res = db.query_scenes_by_text("Where is the fridge?")
+    assert len(res["ids"]) > 0
+    assert res["metadatas"][0][0]["name"] == "kitchen"
 
 
 def test_people_memory(test_db_path):
