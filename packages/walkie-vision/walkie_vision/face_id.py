@@ -1,5 +1,3 @@
-from typing import Any, Dict, List, Optional
-
 import numpy as np
 from insightface.app import FaceAnalysis
 
