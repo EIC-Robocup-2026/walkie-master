@@ -1,23 +1,25 @@
 #!/bin/bash
-
-# serve_llm.sh: สคริปต์สำหรับ Host Qwen3-8B
-# ตำแหน่งจัดเก็บ: walkie-master/scripts/
+# scripts/serve_llm.sh
 
 MODE=${1:-vllm}
-
-echo "🧠 กำลังเริ่มต้นการ Host โมเดล: Qwen/Qwen3-8B"
+echo "🧠 Starting Model Host with Tool Support: Qwen/Qwen3-8B"
 
 if [ "$MODE" == "vllm" ]; then
-    # ใช้ vLLM เพื่อประสิทธิภาพสูงสุดบน RTX 5090
-    python3 -m vllm.entrypoints.openai.api_server \
+    # เพิ่ม --enable-auto-tool-choice และ --tool-call-parser ให้กับ vLLM
+    # สำหรับ Qwen แนะนำให้ใช้ parser 'hermes' หรือ 'tool_calling' (ขึ้นอยู่กับเวอร์ชัน vLLM)
+    uv run python -m vllm.entrypoints.openai.api_server \
         --model "Qwen/Qwen3-8B" \
         --served-model-name "qwen3-8b" \
         --port 8000 \
-        --gpu-memory-utilization 0.8 \
-        --dtype float16 \
+        --max-model-len 8192 \
+        --gpu-memory-utilization 0.7 \
+        --quantization bitsandbytes \
+        --load-format bitsandbytes \
+        --enable-auto-tool-choice \
+        --tool-call-parser hermes \
         --trust-remote-code
 
 elif [ "$MODE" == "ollama" ]; then
-    # ถ้าใช้ Ollama ให้มั่นใจว่าได้ pull model นี้มาแล้ว
+    export OLLAMA_HOST="0.0.0.0:8000"
     ollama run qwen3:8b
 fi
