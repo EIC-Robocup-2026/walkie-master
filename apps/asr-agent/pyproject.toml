@@ -1,0 +1,28 @@
+[project]
+name = "asr-agent"
+version = "0.1.0"
+description = "ASR-Agent for Walkie-Master Robot Control"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "walkie-sdk",
+    "walkie-db",
+    "walkie-vision",
+    "openai>=1.0.0",        # ใช้สำหรับเชื่อมต่อ Qwen3 ผ่าน Local API
+    "faster-whisper",      # Local ASR Model
+    "pyaudio",             # สำหรับรับเสียงจากไมโครโฟน
+    "pydantic>=2.0.0",     # สำหรับทำ Tool Schemas
+    "pytest",
+    "python-dotenv",
+    "langchain",
+    "langgraph",
+    "typing"
+]
+
+[tool.uv.sources]
+walkie-sdk = { workspace = true }
+walkie-db = { workspace = true }
+walkie-vision = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["src/asr_agent/tests"]
