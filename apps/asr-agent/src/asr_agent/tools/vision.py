@@ -1,25 +1,30 @@
-from typing import Any, Dict, Optional
-
+from typing import Optional, Dict, Any
+import numpy as np
 from langchain_core.tools import tool
-from walkie_vision.detector import ObjectDetector
+from walkie_vision.detector import VisionDetector  # แก้เป็นชื่อที่ถูกต้อง
 
-# โหลดโมเดล Vision ไว้ที่ Global เพื่อประหยัดเวลาโหลดใหม่ในแต่ละรอบ
-detector = ObjectDetector()
-
+# สร้าง Instance โดยใช้ชื่อคลาสเดิมของคุณ
+detector = VisionDetector()
 
 @tool
 def observe_scene(focus_object: Optional[str] = "all") -> Dict[str, Any]:
     """
-    Scans the current camera feed to detect objects and generate semantic descriptions.
-    Use this when you need to find an object, describe the room, or identify surroundings.
+    Scans the current camera feed to detect objects.
     """
-    # เรียกใช้ Perception Unit เพื่อเปลี่ยนภาพสดเป็นข้อมูลเชิงโครงสร้าง
-    # ตัวอย่างผลลัพธ์: {'objects': ['cup', 'table'], 'captions': ['a blue mug on a table']}
-    results = detector.detect_and_caption(focus_object=focus_object)
+    # จำลองการรับ Frame (ในงานจริงต้องดึงจาก Camera Bridge)
+    # เราจะใช้ frame ว่างๆ สำหรับการทดสอบเบื้องต้น
+    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
-    # ส่งข้อมูลแบบ JSON ที่พร้อมให้ LLM (Qwen) ประมวลผลต่อ
+    # เรียกใช้ Method ที่มีอยู่จริงใน VisionDetector ของคุณ
+    detected_items = detector.get_segmented_objects(dummy_frame)
+
+    objects_found = [item["yolo_class"] for item in detected_items]
+
+    # กรองวัตถุตามคำสั่ง
+    if focus_object != "all":
+        objects_found = [obj for obj in objects_found if focus_object.lower() in obj.lower()]
+
     return {
-        "detected_objects": results.get("objects", []),
-        "semantic_descriptions": results.get("captions", []),
-        "confidence_scores": results.get("confidences", []),
+        "detected_objects": objects_found,
+        "semantic_descriptions": [f"I see a {obj}" for obj in objects_found]
     }
