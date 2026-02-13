@@ -8,7 +8,7 @@ from ultralytics import YOLO
 class VisionDetector:
     def __init__(
         self,
-        yolo_checkpoint: str = "./walkie_vision/models/yolo26x.pt",  # ใช้รุ่นมาตรฐาน (ไม่ต้องมี -seg)
+        yolo_checkpoint: str = "data/models/yolo26x.pt",  # ใช้รุ่นมาตรฐาน (ไม่ต้องมี -seg)
         device: str = "cuda",
     ):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")

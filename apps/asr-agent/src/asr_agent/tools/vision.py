@@ -1,30 +1,59 @@
-from typing import Optional, Dict, Any
+import cv2
 import numpy as np
 from langchain_core.tools import tool
-from walkie_vision.detector import VisionDetector  # แก้เป็นชื่อที่ถูกต้อง
+from walkie_vision.detector import VisionDetector
+from walkie_db.agent_integration import AgentIntegration
 
-# สร้าง Instance โดยใช้ชื่อคลาสเดิมของคุณ
-detector = VisionDetector()
+# Initialize modules
+v_detector = VisionDetector()
+# สมมติว่ามีฟังก์ชัน get_frame() อยู่ใน walkie_vision.camera_sim
+from walkie_vision.camera_sim import get_frame
+
+# ตัวแปรสำหรับเก็บภาพล่าสุดในหน่วยความจำของ Agent (Shared Buffer)
+last_captured_frame = None
 
 @tool
-def observe_scene(focus_object: Optional[str] = "all") -> Dict[str, Any]:
+def get_current_view() -> str:
     """
-    Scans the current camera feed to detect objects.
+    Captures the current frame from the robot's camera (Gazebo Simulation).
     """
-    # จำลองการรับ Frame (ในงานจริงต้องดึงจาก Camera Bridge)
-    # เราจะใช้ frame ว่างๆ สำหรับการทดสอบเบื้องต้น
-    dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    global last_captured_frame
+    try:
+        frame = get_frame() # ดึงภาพจาก simulator
+        if frame is not None:
+            last_captured_frame = frame
+            return "Successfully captured a new frame from the camera."
+        return "Error: Received empty frame from simulator."
+    except Exception as e:
+        return f"Error capturing frame: {str(e)}"
 
-    # เรียกใช้ Method ที่มีอยู่จริงใน VisionDetector ของคุณ
-    detected_items = detector.get_segmented_objects(dummy_frame)
+@tool
+def analyze_and_store_objects() -> str:
+    """
+    Analyzes the last captured frame, detects objects, and saves their
+    embeddings and positions into the WalkieDB database.
+    """
+    global last_captured_frame
+    if last_captured_frame is None:
+        return "Error: No frame captured yet. Please call get_current_view first."
 
-    objects_found = [item["yolo_class"] for item in detected_items]
+    # 1. รัน YOLO Detection
+    detections = v_detector.get_segmented_objects(last_captured_frame)
+    if not detections:
+        return "Scene analyzed: No objects detected in the current view."
 
-    # กรองวัตถุตามคำสั่ง
-    if focus_object != "all":
-        objects_found = [obj for obj in objects_found if focus_object.lower() in obj.lower()]
+    # 2. เชื่อมต่อ Database และบันทึก
+    db = AgentIntegration(base_db_path="data/walkie_memory")
 
-    return {
-        "detected_objects": objects_found,
-        "semantic_descriptions": [f"I see a {obj}" for obj in objects_found]
-    }
+    count = 0
+    for item in detections:
+        # สมมติค่า xyz และ embedding สำหรับทดสอบ (ในงานจริงจะได้จาก Vision Pipeline)
+        db.process_object_detection(
+            object_id=f"{item['yolo_class']}_{count}",
+            xyz=[0.0, 0.0, 0.0], # ค่าตำแหน่งจำลอง
+            embedding=[0.0] * 512, # ค่า Featureจำลอง
+            label=item['yolo_class']
+        )
+        count += 1
+
+    return f"Successfully detected and stored {count} objects in the database."

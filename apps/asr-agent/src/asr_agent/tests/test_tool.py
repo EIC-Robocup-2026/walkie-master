@@ -19,9 +19,7 @@ class TestNavigationTool:
         """2. ตรวจสอบว่า Tool เรียกใช้ bot.nav.go_to() และคืนค่า SUCCEEDED"""
         # สร้าง Mock สำหรับ Robot และ Navigation
         mock_bot = MagicMock()
-        mock_robot_class.return_value = mock_botimport pytest
-        from unittest.mock import MagicMock, patch
-        from asr_agent.tools.robot import move_to_coordinates
+        mock_robot_class.return_value = mock_bot
 
         class TestNavigationTool:
 
@@ -43,6 +41,9 @@ class TestNavigationTool:
                 # รัน Tool
                 result = move_to_coordinates.invoke({"x": 0.0, "y": 0.0})
                 # ตรวจสอบว่ามีการเรียกใช้คำสั่งเดิน (เช่น navigation.go_to หรือเมธอดที่เกี่ยวข้อง)
+                import pytest
+                from unittest.mock import MagicMock, patch
+                from asr_agent.tools.robot import move_to_coordinates
                 # หมายเหตุ: ปรับชื่อเมธอดตามที่คุณเขียนไว้ใน walkie-sdk
                 assert mock_robot.move_to.called or mock_robot.navigation.go_to.called
                 assert "succeeded" in result.lower() or "failed" in result.lower()
@@ -70,7 +71,7 @@ class TestNavigationTool:
         mock_bot.nav.go_to.return_value = "SUCCEEDED"
 
         # รัน Tool (ส่ง heading ไปด้วยตาม signature ของ navigation.py)
-        result = move_to_coordinates.invoke({"x": 2.5, "y": 3.0, "heading": 0.0})
+        result = move_to_coordinates.invoke({"x": 2, "y": 2, "heading": 0.0})
 
         # ตรวจสอบว่าเรียกใช้ถูกเมธอดและส่งค่าถูกต้องหรือไม่
         mock_bot.nav.go_to.assert_called_once_with(
