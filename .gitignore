@@ -216,3 +216,5 @@ packages/walkie-vision/models/*
 !packages/walkie-vision/tests/outputs/.gitkeep
 # Track chromadb (มั่นใจว่าโฟลเดอร์นี้ไม่โดน ignore)
 !data/chromadb/
+data/*
+!data/.gitkeep
