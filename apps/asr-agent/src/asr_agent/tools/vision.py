@@ -1,59 +1,67 @@
 import cv2
 import numpy as np
 from langchain_core.tools import tool
-from walkie_vision.detector import VisionDetector
 from walkie_db.agent_integration import AgentIntegration
+from walkie_vision.detector import VisionDetector
 
-# Initialize modules
-v_detector = VisionDetector()
-# สมมติว่ามีฟังก์ชัน get_frame() อยู่ใน walkie_vision.camera_sim
-from walkie_vision.camera_sim import get_frame
+from asr_agent.tools.robot import get_bot
 
-# ตัวแปรสำหรับเก็บภาพล่าสุดในหน่วยความจำของ Agent (Shared Buffer)
-last_captured_frame = None
+# Singleton instances
+_v_detector = None
+_last_captured_frame = None
+
+
+def get_detector():
+    """Lazy initialization for VisionDetector."""
+    global _v_detector
+    if _v_detector is None:
+        _v_detector = VisionDetector()
+    return _v_detector
+
 
 @tool
 def get_current_view() -> str:
     """
-    Captures the current frame from the robot's camera (Gazebo Simulation).
+    Captures the current frame from the robot's camera via Walkie-SDK.
     """
-    global last_captured_frame
+    global _last_captured_frame
     try:
-        frame = get_frame() # ดึงภาพจาก simulator
+        bot = get_bot()
+        if bot.camera is None:
+            return "Error: Camera module is not available."
+
+        # ดึงภาพจาก SDK (BGR numpy array)
+        frame = bot.camera.get_frame()
+
         if frame is not None:
-            last_captured_frame = frame
+            _last_captured_frame = frame
             return "Successfully captured a new frame from the camera."
-        return "Error: Received empty frame from simulator."
+        return "Error: Empty frame received from camera."
     except Exception as e:
         return f"Error capturing frame: {str(e)}"
+
 
 @tool
 def analyze_and_store_objects() -> str:
     """
-    Analyzes the last captured frame, detects objects, and saves their
-    embeddings and positions into the WalkieDB database.
+    Analyzes the last captured frame and stores objects in WalkieDB.
     """
-    global last_captured_frame
-    if last_captured_frame is None:
-        return "Error: No frame captured yet. Please call get_current_view first."
+    global _last_captured_frame
+    if _last_captured_frame is None:
+        return "Error: No frame captured. Please call get_current_view first."
 
-    # 1. รัน YOLO Detection
-    detections = v_detector.get_segmented_objects(last_captured_frame)
+    detector = get_detector()
+    detections = detector.get_segmented_objects(_last_captured_frame)
+
     if not detections:
-        return "Scene analyzed: No objects detected in the current view."
+        return "No objects detected in the current view."
 
-    # 2. เชื่อมต่อ Database และบันทึก
     db = AgentIntegration(base_db_path="data/walkie_memory")
-
-    count = 0
-    for item in detections:
-        # สมมติค่า xyz และ embedding สำหรับทดสอบ (ในงานจริงจะได้จาก Vision Pipeline)
+    for i, item in enumerate(detections):
         db.process_object_detection(
-            object_id=f"{item['yolo_class']}_{count}",
-            xyz=[0.0, 0.0, 0.0], # ค่าตำแหน่งจำลอง
-            embedding=[0.0] * 512, # ค่า Featureจำลอง
-            label=item['yolo_class']
+            object_id=f"{item['yolo_class']}_{i}",
+            xyz=[0.0, 0.0, 0.0],
+            embedding=[0.0] * 512,
+            label=item["yolo_class"],
         )
-        count += 1
-
-    return f"Successfully detected and stored {count} objects in the database."
+    return f"Successfully detected and stored {len(detections)} objects in memory."

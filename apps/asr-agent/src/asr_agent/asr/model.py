@@ -9,11 +9,13 @@ class ASRModel:
 
     def __init__(self, model_size: str = "distil-large-v3"):
         # ตรวจสอบการใช้งาน GPU (RTX 5090) เพื่อความเร็วสูงสุด
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        compute_type = "float16" if device == "cuda" else "int8"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.compute_type = "float16" if self.device == "cuda" else "int8"
 
-        print(f"🎙️ ASR: Loading model '{model_size}' on {device}...")
-        self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        print(f"🎙️ ASR: Loading model '{model_size}' on {self.device}...")
+        self.model = WhisperModel(
+            model_size, device=self.device, compute_type=self.compute_type
+        )
         print("✓ ASR Model loaded.")
 
     def transcribe(self, audio_path_or_ndarray):
