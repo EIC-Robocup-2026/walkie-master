@@ -3,7 +3,7 @@ from walkie_sdk.robot import WalkieRobot
 
 
 def test_sdk_connection():
-    """ตรวจสอบการสื่อสารกับตัวหุ่นยนต์ (หรือ Mock Server)"""
+    """Verify communication with the robot (or Mock Server)."""
     bot = WalkieRobot(ip="127.0.0.1")
     try:
         assert bot.is_connected, "Cannot connect to Robot Base"
@@ -12,7 +12,7 @@ def test_sdk_connection():
 
 
 # def test_arm_status():
-#     """ตรวจสอบว่าอ่านสถานะแขนกลได้ (ถ้าต่ออยู่)"""
+#     """Verify the ability to read robotic arm status (if connected)."""
 #     bot = WalkieRobot(ip="127.0.0.1")
 #     if bot.is_connected:
 #         status = bot.arm.get_status()
