@@ -11,39 +11,39 @@ from asr_agent.tools.vision import analyze_and_store_objects, get_current_view
 
 def test_vision_pipeline_via_orchestrator():
     """
-    ทดสอบการวางแผน (Reasoning) ของ Orchestrator
-    ตรวจสอบว่า AI สั่ง Capture และ Analyze พร้อมกันตาม SOP หรือไม่
+    Test the Orchestrator's reasoning capabilities.
+    Verifies if the AI correctly sequences Capture and Analyze commands per SOP.
     """
-    # 1. ค้นหารูปภาพ (ใช้เพียงเพื่อเช็คบริบทถ้าต้องการ)
+    # 1. Locate scene images (used to check context if necessary)
     scene_dir = "data/images/scenes"
     image_list = glob.glob(os.path.join(scene_dir, "*.[jJ][pP][gG]"))
     if not image_list:
         pytest.skip(f"No images found in {scene_dir}")
 
-    # 2. Mock ระบบภายนอก (เพื่อไม่ให้ Robot ต่อจริงตอนเรียก Orchestrator)
+    # 2. Mock external systems to bypass physical robot/hardware dependencies
     with (
         patch("asr_agent.tools.robot.WalkieRobot"),
         patch("asr_agent.tools.vision.VisionDetector"),
         patch("asr_agent.tools.vision.AgentIntegration"),
     ):
-        # 3. สร้าง Orchestrator
+        # 3. Initialize Orchestrator
         orchestrator = AgentOrchestrator()
 
-        # 4. ส่งคำสั่งผ่าน Orchestrator
+        # 4. Execute user command through Orchestrator
         user_text = "Look at the table and tell me what you see."
         response = orchestrator.run_command(user_text)
 
-        # 5. ตรวจสอบการตัดสินใจ (Planning Verification)
-        # ตรวจสอบว่า Qwen3-8B เข้าใจ SOP (Capture -> Analyze) ไหม
+        # 5. Planning Verification
+        # Check if the LLM (e.g., Qwen) understands the SOP (Capture -> Analyze)
         tool_calls = orchestrator.client.parse_tool_calls(response)
 
         print(f"\n[AI Thought]: {response.content}")
         print(f"[Planned Tools]: {[c['name'] for c in tool_calls]}")
 
-        # ตรวจสอบว่ามี 2 ขั้นตอนตามกฎ RoboCup ของเรา
+        # Verify the two-step sequence required by our RoboCup rules
         assert len(tool_calls) >= 2
         assert tool_calls[0]["name"] == "get_current_view"
         assert tool_calls[1]["name"] == "analyze_and_store_objects"
 
-        # ยืนยันว่ายังไม่มีการรันจริง (DB ต้องยังไม่ถูกเรียก)
-        # (หมายเหตุ: ถ้าคุณ patch AgentIntegration ไว้ ด้านล่างนี้จะเป็นการเช็คว่าไม่มีการเรียก)
+        # Confirm no actual execution occurred (DB/hardware should not be called during planning)
+        # (Note: Since AgentIntegration is patched, this confirms zero unintended side effects)
