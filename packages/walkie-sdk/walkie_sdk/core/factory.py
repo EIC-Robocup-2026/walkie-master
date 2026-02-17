@@ -116,9 +116,9 @@ class TransportFactory:
     def create_camera_transport(
         protocol: CameraProtocol,
         host: str,
-        port: int = 8554,
+        port: int = 7447,
         ros_transport: Optional["ROSTransportInterface"] = None,
-        topic: str = "/camera/image_raw",
+        topic: str = "/zed/zed_node/rgb/color/rect/image",
         **kwargs,
     ) -> Optional["CameraTransportInterface"]:
         """

@@ -18,6 +18,8 @@ dependencies = [
     "langgraph",
     "typing",
     "vllm>=0.15.1",
+    "eclipse-zenoh>=1.7.2",
+    "lark>=1.2.2",
 ]
 
 [tool.uv.sources]
