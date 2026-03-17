@@ -9,15 +9,31 @@ authors = [
     {name = "Walkie Team"}
 ]
 keywords = ["robotics", "ros2", "sdk", "rosbridge", "webrtc", "navigation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "aiohttp>=3.13.2",
     "aiortc>=1.14.0",
     "av>=16.0.1",
-    "numpy>=2.0.0", # ปรับลดเพื่อให้เข้ากับโมเดล AI ในอนาคต
+    "numpy>=2.3.5",
     "opencv-python>=4.11.0.86",
     "roslibpy>=2.0.0",
-    "pyyaml"
+    "pyyaml",
+    "eclipse-zenoh>=1.7.2",
+    "zenoh-ros2-sdk",
+    "rosbags",
 ]
+
+[project.urls]
+Homepage = "https://github.com/walkie-team/walkie-sdk"
+Documentation = "https://github.com/walkie-team/walkie-sdk#readme"
 
 [build-system]
 requires = ["hatchling"]

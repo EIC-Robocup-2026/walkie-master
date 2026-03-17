@@ -1,67 +1,99 @@
 import time
-
-import pytest
 from walkie_sdk.robot import WalkieRobot
 
+# 1. Define the Feedback Callback
+# This function will run every time the robot sends an update
+def on_arm_feedback(feedback: dict):
+    """
+    Callback to handle real-time updates from the robot.
+    """
+    # Print the raw dictionary to see exactly what data is coming back
+    print(f"\n[>> FEEDBACK] Raw Data: {feedback}")
+    
+    # Example: If your action definition has specific fields like 'distance_to_goal'
+    # you can access them here:
+    # if 'distance_to_goal' in feedback:
+    #     print(f"Distance remaining: {feedback['distance_to_goal']:.3f}m")
 
-# 1. สร้าง Fixture สำหรับจัดการ Robot Connection
-@pytest.fixture(scope="module")
-def robot():
-    """เชื่อมต่อหุ่นยนต์เพียงครั้งเดียวต่อการรัน test module นี้"""
-    # ในการเทสจริง คุณอาจดึง IP จาก Environment Variable ได้
-    # เช่น os.getenv("ROBOT_IP", "127.0.0.1")
-    r = WalkieRobot(ros_protocol="rosbridge", ip="127.0.0.1", ros_port=9090)
-
-    # รอสักครู่ให้การเชื่อมต่อเสถียร (หรือใช้ logic เช็ค r.is_connected())
-    time.sleep(1)
-
-    yield r  # ส่ง robot ไปให้ test functions ใช้งาน
-
-    # หลังจบทุกการเทส ให้ตัดการเชื่อมต่ออัตโนมัติ (Teardown)
-    r.disconnect()
-    print("\n[Teardown] Robot disconnected.")
-
-
-# 2. Test Case: สั่งพับแขน (Go Home)
-def test_arm_go_to_home(robot):
-    print("\nTesting 'Go To Home' command...")
-    # สมมติว่า SDK คืนค่า True/False หรือ Result Object
-    result = robot.arm.go_to_home(group_name="left_arm")
-
-    # Assert ว่าคำสั่งต้องถูกส่งสำเร็จ
-    assert result is not None, "Failed to send Go To Home command"
-
-
-# 3. Test Case: สั่งเปิด/ปิด Gripper
-def test_control_gripper(robot):
-    print("\nTesting 'Control Gripper' command...")
-    result = robot.arm.control_gripper(group_name="left_gripper", position=0.7)
-
-    assert result is not None, "Failed to send Control Gripper command"
-
-
-# 4. Test Case (Optional): สั่งเคลื่อนที่แบบสัมพัทธ์ (Relative Movement)
-def test_arm_relative_movement(robot):
-    """ทดสอบการขยับแขนเล็กน้อย"""
-    # ใช้การขยับเพียงครั้งเดียวเพื่อความปลอดภัยในการเทส
-    result = robot.arm.go_to_pose_relative(
-        group_name="left_arm",
-        x=0.01,
-        y=0,
-        z=-0.01,
-        roll=0,
-        pitch=0,
-        yaw=0,
-        cartesian_path=False,
-        blocking=True,  # ในการเทสแนะนำให้ใช้ True เพื่อรอเช็คผล
+def main():
+    # 1. Initialize the robot connection
+    # Replace '127.0.0.1' with your robot's IP address if not running locally
+    robot = WalkieRobot(
+        ros_protocol="rosbridge", 
+        ip="127.0.0.1", 
+        ros_port=9090
     )
-    assert result is not None
+
+    # Wait up to 5 seconds for the connection to be established
 
 
-# 5. Test Case: สั่งไปที่พิกัด Pose (ถ้าต้องการเทสความแม่นยำ)
-@pytest.mark.skip(reason="Safety: avoid hitting environment during auto-test")
-def test_arm_go_to_pose(robot):
-    result = robot.arm.go_to_pose(
-        x=0.38, y=0.19, z=0.58, roll=-1.57, pitch=0.0, yaw=1.57, group_name="left_arm"
-    )
-    assert result is not None
+    try:
+        print("Sending 'Go To Home' command to left arm...")
+        # Assuming the namespace in walkie-sdk/robot.py is configured for 'left_arm'
+        #robot.arm.go_to_home(group_name="left_arm")
+
+        time.sleep(1)
+        #dayum
+        x_pos, y_pos, z_pos = 0.38, 0.19, 0.58
+        qx_val, qy_val, qz_val, qw_val = -0.5, -0.5, 0.5, 0.5
+        #print("Sending 'Go To Pose Relative' command to left arm...")
+        #Race coonditions lul
+        for i in range(20): 
+            #print(robot.arm.go_to_pose_quaternion(group_name="left_arm", x=x_pos, y=y_pos, z=z_pos, qx=qx_val, qy=qy_val, qz=qz_val, qw=qw_val,cartesian_path=False,blocking=False,feedback_callback=on_arm_feedback))
+            #robot.arm.go_to_pose(group_name="left_arm", x=0.38, y=0.19+(0.01*i), z=0.58, roll=-1.57, pitch=0.0, yaw=1.57,cartesian_path=False,blocking=False,feedback_callback=on_arm_feedback)
+            print(f"Sent relative pose {i}")
+            #time.sleep(0.2)
+        
+        print("Sending 'Go To Pose' command to left arm...")
+        robot.arm.go_to_pose(
+            x=0.38, 
+            y=0.19, 
+            z=0.58, 
+            group_name="left_arm",
+            roll=-1.57, 
+            pitch=0.0, 
+            yaw=1.57, 
+            cartesian_path=False
+        )
+        
+        """
+            ros2 action send_goal /go_to_pose my_robot_interfaces/action/GoToPose "
+            {
+            group_name: 'left_arm',
+            x: 0.38, 
+            y: 0.19, 
+            z: 0.58, 
+            roll: -1.57, 
+            pitch: 0.0, 
+            yaw: 1.57, 
+            cartesian_path: false
+            }"
+        )
+        """
+        robot.arm.control_gripper(group_name="left_gripper",position=0.7) # Close gripper
+
+        #target_positions = [0.1, -0.2, 0.0, 0.5, 0.0, -0.1, 0.0]
+    
+        #print(f"Sending joint positions to left_arm: {target_positions}")
+        #robot.arm.set_joint_positions(target_positions)
+
+        #time.sleep(5)
+
+        #current_states = robot.arm.get_joint_states()
+        #print("all joints state: ",current_states)
+
+
+
+        print("Waiting for action to complete (Press Ctrl+C to stop)...")
+        # Keep the script alive while the action executes in the background
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        print("\nTest stopped by user.")
+    finally:
+        robot.disconnect()
+        print("Disconnected.")
+
+if __name__ == "__main__":
+    main()
