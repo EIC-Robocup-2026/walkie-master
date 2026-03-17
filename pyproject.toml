@@ -1,6 +1,6 @@
 [project]
 name = "walkie-master"
-version = "0.1.2"
+version = "0.1.3"
 description = "RoboCup@Home 2026 Master Repository"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,13 +14,13 @@ dependencies = [
     "walkie-sdk",
     "walkie-vision",
     "walkie-db",
+    "asr-agent",
     "tqdm>=4.67.3",
-    "vllm>=0.16.0",
+    "vllm>=0.15.1",
     "bitsandbytes>=0.49.1",
     "faster-whisper>=1.2.1",
     "langchain-core>=1.2.11",
     "langgraph>=1.0.8",
-    "transformers>=4.57.6",
 ]
 
 [tool.uv.workspace]
@@ -30,3 +30,4 @@ members = ["apps/*", "packages/*"]
 walkie-sdk = { workspace = true }
 walkie-db = { workspace = true }
 walkie-vision = { workspace = true }
+asr-agent = { workspace = true }

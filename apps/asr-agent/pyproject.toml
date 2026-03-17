@@ -1,6 +1,6 @@
 [project]
 name = "asr-agent"
-version = "0.2.0"
+version = "0.3.0"
 description = "ASR-Agent for Walkie-Master Robot Control"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,10 +16,7 @@ dependencies = [
     "python-dotenv",
     "langchain",
     "langgraph",
-    "typing",
     "vllm>=0.15.1",
-    "eclipse-zenoh>=1.7.2",
-    "lark>=1.2.2",
 ]
 
 [tool.uv.sources]
