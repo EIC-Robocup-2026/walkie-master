@@ -16,7 +16,7 @@ dependencies = [
     "walkie-db",
     "asr-agent",
     "tqdm>=4.67.3",
-    "vllm>=0.15.1",
+    "vllm>=0.16.0",
     "bitsandbytes>=0.49.1",
     "faster-whisper>=1.2.1",
     "langchain-core>=1.2.11",
