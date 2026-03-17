@@ -16,13 +16,7 @@ def get_bot():
     if _bot is None:
         print("🤖 Initializing Shared Zenoh Robot Instance (Port 7447)...")
         # บังคับใช้ Zenoh ทั้ง ROS และ Camera ตามที่คุณตั้งค่าไว้ใน Simulation
-        _bot = WalkieRobot(
-            ip="127.0.0.1",
-            ros_protocol="zenoh",  # ใช้ Zenoh สำหรับ Nav/Telemetry
-            ros_port=7447,
-            camera_protocol="zenoh",  # ใช้ Zenoh สำหรับดึงภาพ (สำคัญมาก!)
-            camera_port=7447,
-        )
+        _bot = WalkieRobot(ip="127.0.0.1")
 
         # ให้เวลาระบบ Zenoh ในการทำ Discovery เล็กน้อยเพื่อให้ Module ต่างๆ พร้อมใช้งาน
         time.sleep(1.5)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, Dict, Optional, Tuple, List
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -17,11 +17,12 @@ import numpy as np
 try:
     import zenoh
     from zenoh_ros2_sdk import (
-        ZenohSession, 
-        ROS2Publisher, 
-        ROS2Subscriber, 
-        ROS2ServiceClient
+        ROS2Publisher,
+        ROS2ServiceClient,
+        ROS2Subscriber,
+        ZenohSession,
     )
+
     ZENOH_AVAILABLE = True
 except ImportError:
     ZENOH_AVAILABLE = False
@@ -79,10 +80,10 @@ class ZenohTransport(ROSTransportInterface[Any]):
         self._host = host
         self._port = port
         self._timeout = timeout
-        
+
         self._session_mgr = None
         self._lock = threading.Lock()
-        
+
         # Cache SDK entities
         self._subscribers: Dict[str, ROS2Subscriber] = {}
         self._publishers: Dict[str, ROS2Publisher] = {}
@@ -107,10 +108,11 @@ class ZenohTransport(ROSTransportInterface[Any]):
         try:
             # Initialize the Singleton Session
             self._session_mgr = ZenohSession.get_instance(
-                router_ip=self._host, 
-                router_port=self._port
+                router_ip=self._host, router_port=self._port
             )
-            print(f"  ✓ Connected to Zenoh (Session ID: {self._session_mgr.session_id})")
+            print(
+                f"  ✓ Connected to Zenoh (Session ID: {self._session_mgr.session_id})"
+            )
         except Exception as e:
             self._session_mgr = None
             raise ConnectionError(f"Failed to connect to Zenoh: {e}")
@@ -128,7 +130,7 @@ class ZenohTransport(ROSTransportInterface[Any]):
             self._subscribers.clear()
             self._publishers.clear()
             self._service_clients.clear()
-            
+
             # Reset session reference but don't close singleton (Camera might use it)
             self._session_mgr = None
 
@@ -164,7 +166,7 @@ class ZenohTransport(ROSTransportInterface[Any]):
                 msg_type=message_type,
                 callback=callback_wrapper,
                 router_ip=self._host,
-                router_port=self._port
+                router_port=self._port,
             )
             self._subscribers[topic] = sub
             return sub
@@ -173,10 +175,10 @@ class ZenohTransport(ROSTransportInterface[Any]):
         """Unsubscribe and close the SDK subscriber."""
         with self._lock:
             # Handle is the ROS2Subscriber instance
-            if hasattr(handle, 'topic') and handle.topic in self._subscribers:
+            if hasattr(handle, "topic") and handle.topic in self._subscribers:
                 handle.close()
                 del self._subscribers[handle.topic]
-            elif hasattr(handle, 'close'):
+            elif hasattr(handle, "close"):
                 handle.close()
 
     def publish(
@@ -196,9 +198,9 @@ class ZenohTransport(ROSTransportInterface[Any]):
                     topic=topic,
                     msg_type=message_type,
                     router_ip=self._host,
-                    router_port=self._port
+                    router_port=self._port,
                 )
-            
+
             pub = self._publishers[topic]
 
         # Publish using kwargs
@@ -226,17 +228,19 @@ class ZenohTransport(ROSTransportInterface[Any]):
                     srv_type=service_type,
                     timeout=timeout,
                     router_ip=self._host,
-                    router_port=self._port
+                    router_port=self._port,
                 )
             client = self._service_clients[service_name]
 
         try:
             # SDK call returns an object
             response_obj = client.call(**request)
-            
+
             if response_obj is None:
-                raise TimeoutError(f"Service call to {service_name} timed out or failed")
-                
+                raise TimeoutError(
+                    f"Service call to {service_name} timed out or failed"
+                )
+
             return _msg_to_dict(response_obj)
         except Exception as e:
             print(f"[ZenohTransport] Error calling service {service_name}: {e}")
@@ -254,7 +258,9 @@ class ZenohTransport(ROSTransportInterface[Any]):
         Call a ROS2 action.
         Note: The current zenoh_ros2_sdk does not explicitly expose a high-level ActionClient yet.
         """
-        print(f"[ZenohTransport] WARNING: Action {action_name} call not fully supported in this SDK version.")
+        print(
+            f"[ZenohTransport] WARNING: Action {action_name} call not fully supported in this SDK version."
+        )
         return {"result": None, "status": "NOT_IMPLEMENTED"}
 
     def cancel_action(self) -> None:
@@ -264,27 +270,24 @@ class ZenohTransport(ROSTransportInterface[Any]):
 class ZenohCamera(CameraTransportInterface):
     """
     Camera transport implementation using Zenoh SDK.
-    Subscribes to standard 'sensor_msgs/msg/CompressedImage'.
+    Subscribes to standard 'sensor_msgs/msg/Image' (raw, uncompressed frames).
     """
-    
+
     # Configure your ROS_DOMAIN_ID here if needed
 
     # Define standard ROS 2 topics for camera streams
     # Adjust these topics to match your robot's actual output
     CAMERA_TOPICS = {
-        "head":  f"/zed/zed_node/rgb/color/rect/image/compressed",
-        "left":  f"/walkie/camera/left/compressed",
-        "right": f"/walkie/camera/right/compressed",
+        "head": "/zed_head/zed_node/rgb/color/rect/image",
+        "left": "/walkie/camera/left",
+        "right": "/walkie/camera/right",
     }
-    
-    # Example ZED Topic if using standard ZED wrapper
-    # "head": f"/zed/zed_node/rgb/image_rect_color/compressed"
 
     def __init__(
         self,
         host: str,
         port: int = 7447,
-        topic: str = "walkie/camera/image/compressed",
+        topic: str = "walkie/camera/image",
         camera_name: str = "head",
         multi_camera: bool = False,
         **kwargs,
@@ -296,13 +299,13 @@ class ZenohCamera(CameraTransportInterface):
 
         self._host = host
         self._port = port
-        self._default_topic = topic 
+        self._default_topic = topic
         self._camera_name = camera_name
         self._multi_camera = multi_camera
-        
+
         self._session_mgr = None
         self._subscribers: Dict[str, ROS2Subscriber] = {}
-        
+
         self._latest_frames: Dict[str, np.ndarray] = {}
         self._frame_lock = threading.Lock()
         self._streaming = False
@@ -327,7 +330,7 @@ class ZenohCamera(CameraTransportInterface):
         # Reuse existing session singleton if available
         self._session_mgr = ZenohSession.get_instance(self._host, self._port)
 
-        # Determine which st to subscribe to
+        # Determine which topics to subscribe to
         topics = {}
         if self._multi_camera:
             topics = self.CAMERA_TOPICS
@@ -348,13 +351,13 @@ class ZenohCamera(CameraTransportInterface):
 
             self._subscribers[name] = ROS2Subscriber(
                 topic=topic,
-                msg_type="sensor_msgs/msg/CompressedImage",
+                msg_type="sensor_msgs/msg/Image",
                 domain_id=ROS_DOMAIN_ID,
                 callback=make_cb(name),
                 router_ip=self._host,
-                router_port=self._port
+                router_port=self._port,
             )
-        
+
         self._streaming = True
         print("  ✓ Camera Stream Started")
 
@@ -363,33 +366,56 @@ class ZenohCamera(CameraTransportInterface):
         for sub in self._subscribers.values():
             sub.close()
         self._subscribers.clear()
-        
+
         with self._frame_lock:
             self._latest_frames.clear()
 
     def _on_frame(self, name: str, msg: Any) -> None:
-        """Handle CompressedImage message."""
+        """Handle raw sensor_msgs/msg/Image message."""
         try:
-            # ROS 2 CompressedImage: 'data' field contains the bytes
-            data = msg.data
-            # print(f"Received frame for camera '{name}', size: {len(data)} bytes")
-            
+            # Extract metadata
+            height = getattr(msg, "height", None)
+            width = getattr(msg, "width", None)
+            encoding = getattr(msg, "encoding", "")
+            data = getattr(msg, "data", None)
+
+            if data is None or height is None or width is None:
+                return
+
             # Handle different byte representations (rosbags vs standard)
-            if hasattr(data, 'tobytes'):
+            if hasattr(data, "tobytes"):
                 data = data.tobytes()
             elif isinstance(data, list):
                 data = bytes(data)
             elif not isinstance(data, (bytes, bytearray)):
                 # Fallback
                 data = bytes(data)
-            
-            # Decode JPEG/PNG to OpenCV image
-            np_arr = np.frombuffer(data, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            
+
+            # Convert raw bytes to flat numpy array
+            np_arr = np.frombuffer(data, dtype=np.uint8)
+
+            # Reshape based on image encoding
+            if encoding == "rgb8":
+                frame = np_arr.reshape((height, width, 3))
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            elif encoding == "bgr8":
+                frame = np_arr.reshape((height, width, 3))
+            elif encoding == "bgra8":
+                frame = np_arr.reshape((height, width, 4))
+            elif encoding == "rgba8":
+                frame = np_arr.reshape((height, width, 4))
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
+            elif encoding == "mono8":
+                frame = np_arr.reshape((height, width))
+            else:
+                # Unsupported format
+                print(f"Unsupported encoding '{encoding}' for camera '{name}'")
+                return
+
             if frame is not None:
                 with self._frame_lock:
                     self._latest_frames[name] = frame
+
         except Exception as e:
             # print(f"Frame decode error: {e}")
             pass

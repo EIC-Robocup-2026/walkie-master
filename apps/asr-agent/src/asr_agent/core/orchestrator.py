@@ -18,13 +18,7 @@ class AgentOrchestrator:
         # 2. สร้าง Shared Robot Instance ผ่าน Zenoh 7447
         # การสร้างที่นี่จะทำให้ Session ของ Zenoh ถูกเปิดทิ้งไว้ตลอดอายุของ Orchestrator
         print("🌐 Connecting to Walkie via Zenoh (Port 7447)...")
-        self.bot = WalkieRobot(
-            ip="127.0.0.1",
-            ros_protocol="zenoh",
-            ros_port=7447,
-            camera_protocol="zenoh",
-            camera_port=7447,
-        )
+        self.bot = WalkieRobot(ip="127.0.0.1")
 
         # 3. เตรียมเครื่องมือ
         raw_tools = [

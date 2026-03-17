@@ -25,8 +25,8 @@ from walkie_sdk.modules.camera import Camera
 from walkie_sdk.modules.multi_camera import MultiCamera
 from walkie_sdk.modules.navigation import Navigation
 from walkie_sdk.modules.telemetry import Telemetry
-from walkie_sdk.modules.visualization import Visualization
 from walkie_sdk.modules.tools import Tools
+from walkie_sdk.modules.visualization import Visualization
 
 
 class WalkieRobot:
@@ -87,8 +87,8 @@ class WalkieRobot:
         ip: str,
         ros_protocol: str = "rosbridge",
         ros_port: int = 9090,
-        camera_protocol: str = "webrtc",
-        camera_port: int = 8554,
+        camera_protocol: str = "zenoh",
+        camera_port: int = 7447,
         timeout: float = 10.0,
         namespace: str = "",
         arm_mode: str = "custom_ik",
@@ -301,7 +301,7 @@ class WalkieRobot:
             ... )
         """
         return self._viz
-    
+
     @property
     def tools(self) -> Tools:
         """Tools module for utility functions."""
