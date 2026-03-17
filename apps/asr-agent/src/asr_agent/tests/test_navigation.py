@@ -18,7 +18,7 @@ def test_navigation_argument_logic():
 
         # 3. Execute command through Orchestrator (returns an AI Response Object)
         response = orchestrator.run_command(user_command)
-
+        print(response)
         # 4. Validate planning (Tool Calls)
         tool_calls = orchestrator.client.parse_tool_calls(response)
 
